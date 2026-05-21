@@ -1,0 +1,16 @@
+{
+  "name": "pi-skill-deck",
+  "version": "0.1.0",
+  "description": "Two-pane categorized skill browser for Pi with bookmarks, frecency tracking, and daily suggestions",
+  "main": "index.ts",
+  "keywords": ["pi-package"],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CymatiStatic/pi-skill-deck.git"
+  },
+  "author": "CymatiStatic",
+  "license": "MIT",
+  "pi": {
+    "extensions": ["./index.ts"]
+  }
+}
