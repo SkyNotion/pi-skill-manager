@@ -85,7 +85,14 @@ export default function piSkillDeck(pi: ExtensionAPI): void {
           overlay.setRequestRender(() => tui.requestRender());
           return overlay;
         },
-        { overlay: true }
+        {
+          overlay: true,
+          overlayOptions: {
+            width: "95%",
+            maxHeight: "85%",
+            anchor: "center" as const,
+          },
+        }
       );
 
       if (result.action === "select" && result.skill) {
@@ -117,7 +124,14 @@ export default function piSkillDeck(pi: ExtensionAPI): void {
           overlay.setRequestRender(() => tui.requestRender());
           return overlay;
         },
-        { overlay: true }
+        {
+          overlay: true,
+          overlayOptions: {
+            width: "95%",
+            maxHeight: "85%",
+            anchor: "center" as const,
+          },
+        }
       );
       if (result.action === "select" && result.skill) {
         state.queuedSkill = result.skill;

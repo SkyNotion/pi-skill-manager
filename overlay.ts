@@ -191,9 +191,10 @@ export class SkillDeckOverlay {
 
   // ─── Render ────────────────────────────────────────────────────────
 
-  render(width: number, height: number): string[] {
+  render(width: number): string[] {
+    const termHeight = (typeof process !== "undefined" && process.stdout?.rows) || 40;
     const w = Math.min(100, width - 2);
-    const h = Math.max(20, height - 2);
+    const h = Math.max(20, termHeight - 4);
     const leftW = Math.min(24, Math.floor(w * 0.3));
     const rightW = w - leftW - 1; // -1 for separator
     const innerH = h - 3; // header + footer + separator line
