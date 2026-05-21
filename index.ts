@@ -101,13 +101,33 @@ export default function piSkillDeck(pi: ExtensionAPI): void {
     },
   });
 
-  // ── Register /skill-deck alias ──
+  // ── Register /skill-deck alias (duplicates handler to avoid API dep) ──
   pi.registerCommand("skill-deck", {
     description: "Alias for /skills — open the categorized skill browser",
     handler: async (_args: string, ctx: ExtensionContext) => {
-      // Forward to /skills handler
-      const cmd = pi.getCommand?.("skills");
-      if (cmd?.handler) await cmd.handler(_args, ctx);
+      const skills = loadAllSkills();
+      if (skills.length === 0) {
+        ctx.ui.setStatus("skill-deck", "No skills found");
+        setTimeout(() => ctx.ui.setStatus("skill-deck", undefined), 3000);
+        return;
+      }
+      const result = await ctx.ui.custom<OverlayResult>(
+        (tui, _theme, _keybindings, done) => {
+          const overlay = new SkillDeckOverlay(skills, done);
+          overlay.setRequestRender(() => tui.requestRender());
+          return overlay;
+        },
+        { overlay: true }
+      );
+      if (result.action === "select" && result.skill) {
+        state.queuedSkill = result.skill;
+        recordUsage(result.skill.name);
+        ctx.ui.setStatus("skill-deck", `🎴 ${result.skill.name}`);
+        ctx.ui.setWidget("skill-deck", [
+          `\x1b[2m🎴 Skill: \x1b[0m\x1b[36m${result.skill.name}\x1b[0m\x1b[2m — will be applied to next message\x1b[0m`,
+        ]);
+        ctx.ui.notify(`Skill queued: ${result.skill.name}`, "info");
+      }
     },
   });
 
