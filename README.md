@@ -1,114 +1,109 @@
-# pi-skill-deck
+# 🎴 pi-skill-deck
 
-Two-pane categorized skill browser for [Pi](https://github.com/badlogic/pi-mono) with bookmarks, frecency tracking, and daily suggestions.
+> Two-pane categorized skill browser for [Pi](https://github.com/mariozechner/pi) — replaces the flat alphabetical wall of 150+ skills with a navigable, categorized TUI overlay.
 
-Replaces the flat alphabetical wall of 150+ skills with a navigable, categorized overlay.
+![pi-skill-deck preview](preview.png)
 
-## Features
+## ✨ Features
 
 - **Two-pane browser** — categories on the left, skills + detail on the right
 - **★ Top 10 most used** — pinned at the top, ranked by frecency (frequency × recency)
-- **📌 Bookmarks** — `Ctrl+B` to save skills for later
-- **💡 Daily suggestions** — 1-3 underused skills that match your activity patterns, refreshed daily
-- **13 auto-categories** — Design & UI, Marketing & GTM, Product Hunt, Video & Media, Memory & Brain, Pi Meta, Open Design, Obsidian, Baoyu Tools, Context-Mode, OSS Launch, Cloud & Deploy, Product
-- **Search** — press `/` to filter skills by name or description
+- **📌 Bookmarks** — `Ctrl+B` to save skills for quick access
+- **💡 Daily suggestions** — 1–3 underused skills that match your activity patterns, refreshed daily
+- **13+ auto-categories** — Design & UI, Marketing & GTM, Product Hunt, Video & Media, Memory & Brain, Pi Meta, Open Design, Obsidian, Context-Mode, OSS Launch, Cloud & Deploy, Product, and more
+- **Search** — press `/` to filter skills by name or description in real time
 - **Skill queueing** — selected skill is injected alongside your next message
+- **Zero config** — scans all standard skill locations automatically
 
-## Installation
+## 📦 Installation
 
 ```bash
-pi install npm:pi-skill-deck
+pi install CymatiStatic/pi-skill-deck
 ```
 
-Restart Pi to activate.
+Or add manually to your `~/.pi/agent/settings.json`:
 
-> **Note:** If you have `pi-skill-palette` installed, both can coexist.
-> `/skill` opens the quick fuzzy palette, `/skills` opens the two-pane deck.
-
-## Usage
-
+```json
+{
+  "packages": [
+    "github:CymatiStatic/pi-skill-deck"
+  ]
+}
 ```
-/skills           Open the two-pane browser
-/skill-deck       Alias for /skills
-```
+
+Then restart Pi.
+
+## 🚀 Usage
+
+Type `/skills` inside any Pi session to open the browser.
 
 ### Keyboard shortcuts (inside overlay)
 
 | Key | Action |
 |-----|--------|
-| `↑` / `↓` | Navigate within focused pane |
-| `Tab` | Switch focus between left/right panes |
-| `←` / `→` | Switch panes |
-| `Enter` | Queue selected skill (right pane) / Focus right pane (left pane) |
+| `Tab` / `← →` | Switch focus between panes |
+| `↑ ↓` | Navigate within the focused pane |
+| `Enter` | Queue the selected skill for your next message |
 | `Ctrl+B` | Toggle bookmark on highlighted skill |
-| `/` | Start search |
-| `Esc` | Close overlay / Exit search |
-| `Backspace` | Delete search character |
+| `/` | Start search (filters by name or description) |
+| `Esc` | Close overlay (or exit search mode) |
+| `Backspace` | Delete search characters |
 
-## How it works
+## 🔍 How it works
+
+### Skill scanning
+
+Automatically discovers skills from all standard Pi skill locations:
+
+| Location | Format |
+|----------|--------|
+| `~/.pi/agent/skills/` | Recursive (SKILL.md) |
+| `~/.pi/skills/` | Recursive |
+| `./.pi/skills/` | Project-local |
+| `~/.codex/skills/` | Codex-compatible |
+| `~/.claude/skills/` | Claude-compatible |
+| `./.claude/skills/` | Project-local Claude |
+| `~/.agents/skills/` | Shared agent skills |
+| npm global `node_modules/*/skills/` | Installed packages |
 
 ### Categorization
 
-Skills are auto-categorized using a multi-pass heuristic:
+Skills are categorized using a multi-layer strategy (applied in order):
 
-1. **Parent directory** — skills under `.../marketing/` → Marketing & GTM
-2. **Name prefix** — `baoyu-*` → Baoyu Tools, `ph-*` → Product Hunt, etc.
-3. **Explicit map** — hand-curated overrides for non-obvious skills
-4. **Description keywords** — fallback pattern matching
+1. **Parent directory** — e.g., skills under `marketing/` → Marketing & GTM
+2. **Name prefix** — `baoyu-*` → Baoyu Tools, `ph-*` → Product Hunt, `ctx-*` → Context-Mode
+3. **Explicit overrides** — hardcoded map for non-obvious skills
+4. **Description keywords** — fallback keyword matching
 5. **"Other"** — last resort
 
 ### Frecency tracking
 
-Every time you queue a skill, its usage count increments and timestamp updates. The frecency score decays with a 7-day half-life, so recently-used skills rank higher than historically-popular-but-stale ones.
+Usage is tracked per-skill with a frecency score: `count × 0.5^(age_days / 7)`. This means a skill used 10 times last week ranks higher than one used 50 times last month. The Top 10 section reflects this ranking.
 
 ### Daily suggestions
 
-Once per day, the suggestion engine:
+Each day, 1–3 skills are suggested from categories you use but haven't fully explored. The algorithm picks underused skills from your most active categories — no AI needed, just simple heuristics.
 
-1. Pools all skills with 0-1 total uses
-2. Scores by category affinity (prefer underused skills in categories you already use)
-3. Adds light randomization for variety
-4. Picks top 1-3
+## 📁 State files
 
-No LLM calls — runs entirely on local usage data.
+All persisted in `~/.pi/agent/`:
 
-### Skill scanning
+| File | Purpose |
+|------|---------|
+| `skill-usage.json` | Per-skill `{ count, lastUsedAt }` |
+| `skill-bookmarks.json` | Array of bookmarked skill names |
+| `skill-suggestion.json` | `{ date, picks: [{ name, reason }] }` |
 
-Scans these directories (matching Pi's loading order):
-
-1. `~/.codex/skills/` (recursive)
-2. `~/.claude/skills/` (one level)
-3. `${cwd}/.claude/skills/` (one level)
-4. `~/.pi/agent/skills/` (recursive)
-5. `~/.pi/skills/` (recursive)
-6. `${cwd}/.pi/skills/` (recursive)
-7. `~/.agents/skills/` (recursive)
-8. npm global packages with `skills/` directories
-
-## State files
-
-All stored in `~/.pi/agent/`:
-
-| File | Contents |
-|------|----------|
-| `skill-usage.json` | `{ skillName: { count, lastUsedAt } }` |
-| `skill-bookmarks.json` | `["skillName", ...]` |
-| `skill-suggestion.json` | `{ date: "YYYY-MM-DD", picks: [...] }` |
-
-## Configuration
+## ⚙️ Configuration
 
 ### Custom category overrides
 
-Edit `~/.pi/agent/skill-deck-config.json` (optional):
+Edit `categories.ts` to add your own categories or remap skills. The `EXPLICIT_MAP` object maps skill names to category labels.
 
-```json
-{
-  "categoryOverrides": {
-    "my-custom-skill": "Design & UI"
-  }
-}
-```
+## 🤝 Contributing
 
-## License
+PRs welcome! If you have skills that don't categorize well, open an issue or add an entry to the `EXPLICIT_MAP` in `categories.ts`.
 
-MIT
+## 📄 License
+
+[MIT](LICENSE) — built by [@CymatiStatic](https://github.com/CymatiStatic)
