@@ -1,3 +1,24 @@
+# Dependencies
 node_modules/
+
+# Local Pi extension dev artifacts (never publish to npm or commit)
+.os/
+.pi/MAPS/.pam-pending.jsonl
+.pi/MAPS/.cache/
+
+# Marketing / promo assets (kept out of npm tarball; tracked locally only if needed)
+marketing/
+
+# Logs and temp
 *.log
+*.tmp
 .DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# npm publish helpers (regenerated during dual-publish dance)
+package.json.bak
+.npmrc.bak

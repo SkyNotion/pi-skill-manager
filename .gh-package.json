@@ -1,5 +1,5 @@
 {
-  "name": "pi-skill-deck",
+  "name": "@cymatistatic/pi-skill-deck",
   "version": "0.1.1",
   "description": "Two-pane categorized skill browser for Pi with bookmarks, frecency tracking, and daily suggestions",
   "main": "index.ts",
@@ -48,5 +48,8 @@
   "peerDependenciesMeta": {
     "@mariozechner/pi-coding-agent": { "optional": false },
     "@mariozechner/pi-tui": { "optional": false }
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
   }
 }

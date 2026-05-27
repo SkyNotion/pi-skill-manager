@@ -2,7 +2,18 @@
  * Two-pane TUI overlay for the skill browser.
  *
  * Left pane:  ★ Top 10 → 📌 Bookmarks → 💡 Suggested → [Categories...]
- * Right pane: Skill list for active section + detail panel at bottom
+ * Right pane: Skill list (each row = name + inline short summary + indicators)
+ *             + boxed DETAILS window at the bottom with the full description.
+ *
+ * Each list row:
+ *     ► skill-name              ┊ first-sentence summary…              ★N 📌
+ *       └─ name col (fixed) ──┘ └─ short-summary col (flex) ─┘ └─ indicators ─┘
+ *
+ * Detail window (rendered as a ┌─┐ box below the list):
+ *     ┌─ DETAILS: skill-name ─────────────────────────┐
+ *     │ category: X · used N× · last: 2d ago          │
+ *     │ <full description wrapped to width>           │
+ *     └───────────────────────────────────────────────┘
  *
  * Keys:
  *   Tab / ← →   switch focus between panes
@@ -297,7 +308,9 @@ export class SkillDeckOverlay {
     lines.push(dim(" " + "─".repeat(w - 2)));
 
     // How much space for skill list vs detail?
-    const detailH = 6; // Reserve for detail panel
+    // Bumped to 10 to host the boxed DETAILS window with a wrapped full description.
+    // Falls back to 6 when the terminal is too short to host the larger window.
+    const detailH = maxH >= 22 ? 10 : 6;
     const listH = maxH - lines.length - detailH - 1;
 
     // Ensure rightIdx is in bounds
@@ -307,22 +320,37 @@ export class SkillDeckOverlay {
     if (this.rightIdx < this.rightScroll) this.rightScroll = this.rightIdx;
     if (this.rightIdx >= this.rightScroll + listH) this.rightScroll = this.rightIdx - listH + 1;
 
-    // Render skill list
+    // Render skill list — each row = marker + name col + summary col + indicators
     for (let i = this.rightScroll; i < skills.length && lines.length - 2 < listH; i++) {
       const s = skills[i];
       const isSelected = i === this.rightIdx && focused;
       const u = usage[s.name];
       const usageStr = u && u.count > 0 ? fg("33", `★${u.count}`) : "";
       const bmStr = isBookmarked(s.name) ? fg("36", " 📌") : "";
-
-      const nameW = w - 4 - (usageStr ? 5 : 0) - (bmStr ? 3 : 0);
-      const name = truncate(s.name, nameW);
-
-      let line = (isSelected ? fg("36", " ► ") : "   ") + name;
-      // Right-align indicators
       const indicatorStr = bmStr + (usageStr ? " " + usageStr : "");
-      const gap = w - visLen(line) - visLen(indicatorStr) - 1;
-      line += " ".repeat(Math.max(1, gap)) + indicatorStr;
+      const indicatorW = visLen(indicatorStr);
+
+      // Column widths: marker (3) + name col + sep (3) + summary col + indicators + right margin (1)
+      const markerW = 3;
+      const sepW = 3; // " ┊ "
+      const rightMargin = 1;
+      // Name col gets up to 24 chars (or 40% of available row, whichever is smaller).
+      const flexW = Math.max(0, w - markerW - sepW - indicatorW - rightMargin);
+      const nameColW = Math.max(8, Math.min(24, Math.floor(flexW * 0.4)));
+      const summaryColW = Math.max(0, flexW - nameColW);
+
+      const name = truncate(s.name, nameColW);
+      const summary = summaryColW > 8 ? shortSummary(s.description, summaryColW) : "";
+
+      const marker = isSelected ? fg("36", " ► ") : "   ";
+      const nameField = pad(name, nameColW);
+      const sep = summaryColW > 8 ? dim(" ┊ ") : "   ";
+      const summaryField = pad(dim(summary), summaryColW);
+
+      // Assemble line: marker + name + sep + summary + gap + indicators (right-aligned)
+      let line = marker + nameField + sep + summaryField;
+      const gap = Math.max(1, w - visLen(line) - indicatorW - rightMargin);
+      line += " ".repeat(gap) + indicatorStr;
 
       if (isSelected) {
         lines.push(fg("36", pad(line, w)));
@@ -331,28 +359,48 @@ export class SkillDeckOverlay {
       }
     }
 
-    // Padding between list and detail
+    // Padding between list and detail box
     while (lines.length < maxH - detailH) lines.push("");
 
-    // ── Detail panel ──
-    lines.push(dim(" " + "─".repeat(w - 2)));
-
+    // ── DETAILS window (boxed) ──
     const selectedSkill = skills[this.rightIdx];
+    const boxInnerW = w - 2; // -2 for left/right border chars
+
     if (selectedSkill) {
-      lines.push(" " + fg("36", bold(selectedSkill.name)));
+      // Header row: ┌─ DETAILS: <name> ─────────┐
+      const headerLabel = ` DETAILS: ${selectedSkill.name} `;
+      const headerLabelTrunc = truncate(headerLabel, Math.max(0, boxInnerW - 2));
+      const headerFillW = Math.max(0, boxInnerW - visLen(headerLabelTrunc) - 1);
+      lines.push(
+        dim("┌─") + fg("36", bold(headerLabelTrunc)) + dim("─".repeat(headerFillW) + "┐")
+      );
+
       const u = usage[selectedSkill.name];
       const usedStr = u && u.count > 0
         ? `used ${u.count}× · last: ${timeAgo(u.lastUsedAt)}`
         : "never used";
-      lines.push(" " + dim(`category: ${selectedSkill.category} · ${usedStr}`));
+      const metaLine = `category: ${selectedSkill.category} · ${usedStr}`;
+      lines.push(dim("│") + " " + dim(pad(truncate(metaLine, boxInnerW - 2), boxInnerW - 1)) + dim("│"));
 
-      // Wrap description to fit
-      const descLines = wordWrap(selectedSkill.description, w - 2);
-      for (let i = 0; i < Math.min(3, descLines.length); i++) {
-        lines.push(" " + dim(descLines[i]));
+      // Wrap the full description to fit inside the box.
+      const descLines = wordWrap(selectedSkill.description, boxInnerW - 2);
+      // Reserve: 1 for header + 1 for meta + 1 for footer.
+      const bodyCap = Math.max(0, detailH - 3);
+      for (let i = 0; i < Math.min(bodyCap, descLines.length); i++) {
+        lines.push(dim("│") + " " + pad(descLines[i], boxInnerW - 1) + dim("│"));
       }
+      // Pad body to fill detailH - 3 rows so the footer aligns.
+      for (let i = descLines.length; i < bodyCap; i++) {
+        lines.push(dim("│") + pad("", boxInnerW) + dim("│"));
+      }
+      lines.push(dim("└" + "─".repeat(boxInnerW) + "┘"));
     } else {
-      lines.push(dim(" (no skill selected)"));
+      lines.push(dim("┌" + "─".repeat(boxInnerW) + "┐"));
+      lines.push(dim("│") + pad(" (no skill selected)", boxInnerW) + dim("│"));
+      for (let i = 0; i < detailH - 3; i++) {
+        lines.push(dim("│") + pad("", boxInnerW) + dim("│"));
+      }
+      lines.push(dim("└" + "─".repeat(boxInnerW) + "┘"));
     }
 
     return lines;
@@ -515,6 +563,25 @@ function timeAgo(iso: string): string {
   if (hrs < 24) return `${hrs}h ago`;
   const days = Math.floor(hrs / 24);
   return `${days}d ago`;
+}
+
+/**
+ * Derive a short, inline summary from a SKILL.md description.
+ * Returns the first sentence (up to '.', '!' or '?') or first line, trimmed and
+ * capped at maxLen with an ellipsis.
+ */
+function shortSummary(desc: string, maxLen: number): string {
+  if (!desc) return "";
+  const flat = desc.replace(/\s+/g, " ").trim();
+  // Prefer first sentence boundary
+  const sentenceMatch = flat.match(/^([^.!?]+[.!?])(\s|$)/);
+  let s = sentenceMatch ? sentenceMatch[1].trim() : flat;
+  // Drop trailing period for inline rendering
+  s = s.replace(/[.!?]+$/, "");
+  if (s.length > maxLen) {
+    s = s.slice(0, Math.max(1, maxLen - 1)).replace(/\s+\S*$/, "") + "…";
+  }
+  return s;
 }
 
 function wordWrap(text: string, maxW: number): string[] {
