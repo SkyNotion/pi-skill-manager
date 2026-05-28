@@ -101,6 +101,14 @@ Type `/skills` inside any Pi session to open the browser.
 
 ### Keyboard shortcuts (inside overlay)
 
+Key hints are always visible in **three places** so you never have to remember them:
+
+- Inline in the **header** — the current group-by mode shows `[g]/[G] change [?] help` right next to it
+- Inline in the **DETAILS box** — the tags row shows `[t] inline [T] modal`
+- In the **footer status bar** — every key is in a cyan `[...]` chip
+
+And `?` opens a full **Keyboard reference** panel from anywhere.
+
 | Key | Action |
 |-----|--------|
 | `Tab` / `← →` | Switch focus between panes |
@@ -112,7 +120,8 @@ Type `/skills` inside any Pi session to open the browser.
 | `t` | **Inline** tag editor (replaces footer bar) |
 | `T` (shift+t) | **Modal** tag editor (floating centered box) |
 | `/` | Start search (filters by name or description) |
-| `Esc` | Close overlay (or exit search / tag editor / picker) |
+| `?` | Toggle the full keyboard reference panel |
+| `Esc` | Close overlay (or exit search / tag editor / picker / help) |
 | `Backspace` | Delete search / tag-editor character |
 
 ### Group-by modes

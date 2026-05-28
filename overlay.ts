@@ -16,7 +16,8 @@
  *   t           edit tags — INLINE editor (replaces footer)
  *   T           edit tags — MODAL editor (centered floating box)
  *   /           start search
- *   Esc         close (or exit search / tag editor / picker)
+ *   ?           toggle keyboard reference panel
+ *   Esc         close (or exit search / tag editor / picker / help)
  *   Backspace   delete search/tag-editor char
  */
 
@@ -114,6 +115,7 @@ export class SkillDeckOverlay {
   private groupByPickerIdx = 0;
   private tagEditMode: "none" | "inline" | "modal" = "none";
   private tagEditValue = "";
+  private helpOpen = false;
 
   // Group-by mode
   private groupBy: GroupByMode;
@@ -221,9 +223,9 @@ export class SkillDeckOverlay {
     const total = this.allSkills.length;
     const modeLabel = GROUP_BY_LABELS[this.groupBy];
 
-    // ── Header ──
+    // ── Header ── (shows current group-by mode + the keys that change it)
     const headerLeft = ` ${fg("36", "/skills")}${dim(` ─── ${total} skills `)}`;
-    const headerRight = `${dim(" group: ")}${fg("33", modeLabel)}${dim(" ")}`;
+    const headerRight = `${dim("group: ")}${fg("33", bold(modeLabel))} ${keyHint("g")}${dim("/")}${keyHint("G")}${dim(" change ")}${keyHint("?")}${dim(" help ")}`;
     const headerInner = headerLeft + dim("─".repeat(Math.max(0, w - visLen(headerLeft) - visLen(headerRight) - 2))) + headerRight;
     lines.push(dim("┌") + headerInner + dim("┐"));
 
@@ -254,7 +256,9 @@ export class SkillDeckOverlay {
     );
 
     // ── Overlays (modal panels — drawn on top of body) ──
-    if (this.groupByPickerOpen) {
+    if (this.helpOpen) {
+      this.overlayBox(lines, w, this.renderHelpPanel());
+    } else if (this.groupByPickerOpen) {
       this.overlayBox(lines, w, this.renderGroupByPicker());
     } else if (this.tagEditMode === "modal") {
       this.overlayBox(lines, w, this.renderTagEditorModalBox());
@@ -265,28 +269,32 @@ export class SkillDeckOverlay {
 
   private renderFooter(): string {
     if (this.isSearching) {
-      return dim(" type to filter · ") + dim("↵") + " accept · " + dim("esc") + " clear";
+      return " " + dim("type to filter") + "  " + keyHint("↵") + dim(" accept  ") + keyHint("esc") + dim(" clear");
     }
     if (this.tagEditMode === "inline") {
-      return " " + fg("33", "tags:") + " " + this.tagEditValue + fg("33", "▌") +
-        "   " + dim("↵") + " save · " + dim("esc") + " cancel";
+      return " " + fg("33", bold("tags:")) + " " + this.tagEditValue + fg("33", "▌") +
+        "  " + keyHint("↵") + dim(" save  ") + keyHint("esc") + dim(" cancel");
     }
     if (this.tagEditMode === "modal") {
-      return dim(" modal tag editor open · ") + dim("↵") + " save · " + dim("esc") + " cancel";
+      return " " + dim("modal tag editor open  ") + keyHint("↵") + dim(" save  ") + keyHint("esc") + dim(" cancel");
     }
     if (this.groupByPickerOpen) {
-      return dim(" group-by picker · ") + dim("↑↓") + " pick · " + dim("↵") + " apply · " + dim("esc") + " cancel";
+      return " " + dim("group-by picker  ") + keyHint("↑↓") + dim(" pick  ") + keyHint("↵") + dim(" apply  ") + keyHint("esc") + dim(" cancel");
     }
-    return (
-      dim("tab") + " panes · " +
-      dim("↑↓") + " nav · " +
-      dim("↵") + " queue · " +
-      dim("ctrl+b") + " bm · " +
-      dim("g/G") + " group · " +
-      dim("t/T") + " tag · " +
-      dim("/") + " search · " +
-      dim("esc") + " close"
-    );
+    if (this.helpOpen) {
+      return " " + dim("keyboard reference  ") + keyHint("?") + dim(" or ") + keyHint("esc") + dim(" to close");
+    }
+    // Main footer — keys highlighted in cyan, labels dim for fast scanning
+    return " " +
+      keyHint("Tab")    + dim(" panes ")    +
+      keyHint("↑↓")     + dim(" nav ")      +
+      keyHint("↵")     + dim(" queue ")    +
+      keyHint("Ctrl+B") + dim(" bookmark ") +
+      keyHint("g")      + dim("/")           + keyHint("G") + dim(" group ") +
+      keyHint("t")      + dim("/")           + keyHint("T") + dim(" tag ") +
+      keyHint("/")      + dim(" search ")   +
+      keyHint("?")      + dim(" help ")     +
+      keyHint("Esc")    + dim(" close");
   }
 
   private renderLeftPane(w: number, maxH: number): string[] {
@@ -436,12 +444,13 @@ export class SkillDeckOverlay {
       dim("    creator: ") + fg("35", src.creator)
     ));
 
-    // Row 4: tags
+    // Row 4: tags (with inline key hint so editing is discoverable)
     const tagList = getTags(skill.name);
     const tagsRender = tagList.length > 0
       ? tagList.map((t) => fg("33", `#${t}`)).join(" ")
-      : dim("(none — press 't' or 'T' to add)");
-    lines.push(dataLineFor(dim("tags:    ") + " " + tagsRender));
+      : dim("(none)");
+    const tagsHint = "  " + keyHint("t") + dim(" inline ") + keyHint("T") + dim(" modal");
+    lines.push(dataLineFor(dim("tags:    ") + " " + tagsRender + tagsHint));
 
     // Separator
     lines.push(dim("│") + " " + dim("─".repeat(boxInnerW - 2)) + " " + dim("│"));
@@ -553,6 +562,57 @@ export class SkillDeckOverlay {
     return lines;
   }
 
+  private renderHelpPanel(): string[] {
+    const w = 64;
+    const lines: string[] = [];
+    const titleLabel = " Keyboard reference ";
+    lines.push(dim("┌") + fg("36", bold(titleLabel)) + dim("─".repeat(w - titleLabel.length - 1) + "┐"));
+
+    const rows: Array<[string, string] | "section" | string> = [
+      "Navigation",
+      ["Tab  /  ← →",       "Switch focus between panes"],
+      ["↑ ↓",                "Move up / down within a pane"],
+      ["Enter",              "Focus right pane  /  queue skill"],
+      "section",
+      "Group-by",
+      ["g",                  "Cycle to next group-by mode"],
+      ["G",                  "Open group-by picker (menu)"],
+      "section",
+      "Skill actions",
+      ["Ctrl+B",             "Toggle bookmark on highlighted skill"],
+      ["t",                  "Edit tags — inline editor"],
+      ["T",                  "Edit tags — modal editor"],
+      "section",
+      "Search & exit",
+      ["/",                  "Start search"],
+      ["Backspace",          "Delete a search / tag-editor char"],
+      ["?",                  "Toggle this help panel"],
+      ["Esc",                "Close overlay  /  cancel modal"],
+    ];
+
+    for (const row of rows) {
+      if (row === "section") {
+        lines.push(dim("│ " + "─".repeat(w - 2) + " │"));
+        continue;
+      }
+      if (typeof row === "string") {
+        const txt = "  " + fg("33", bold(row));
+        lines.push(dim("│") + pad(txt, w) + dim("│"));
+        continue;
+      }
+      const [k, label] = row;
+      const keyCol = "    " + keyHint(k);
+      const padded = pad(keyCol, 22) + dim(label);
+      lines.push(dim("│") + pad(" " + padded, w) + dim("│"));
+    }
+
+    lines.push(dim("│ " + "─".repeat(w - 2) + " │"));
+    const closeLine = "  " + dim("Press ") + keyHint("?") + dim(" or ") + keyHint("Esc") + dim(" to close");
+    lines.push(dim("│") + pad(closeLine, w) + dim("│"));
+    lines.push(dim("└" + "─".repeat(w) + "┘"));
+    return lines;
+  }
+
   private renderTagEditorModalBox(): string[] {
     const skill = this.activeSkills()[this.rightIdx];
     if (!skill) return [];
@@ -586,9 +646,25 @@ export class SkillDeckOverlay {
       return;
     }
 
+    // Help panel (modal)
+    if (this.helpOpen) {
+      if (matchesKey(data, "escape") || data === "?") {
+        this.helpOpen = false;
+        this.requestRender?.();
+      }
+      return;
+    }
+
     // Search mode
     if (this.isSearching) {
       this.handleSearchInput(data);
+      return;
+    }
+
+    // ? → toggle help
+    if (data === "?") {
+      this.helpOpen = true;
+      this.requestRender?.();
       return;
     }
 
@@ -825,6 +901,11 @@ export class SkillDeckOverlay {
 // ═══════════════════════════════════════════════════════════════════════════
 // Utilities
 // ═══════════════════════════════════════════════════════════════════════════
+
+/** Render a key chip like `[Tab]` in cyan brackets — the visual unit for all keymap hints. */
+function keyHint(k: string): string {
+  return fg("36", `[${k}]`);
+}
 
 function timeAgo(iso: string): string {
   if (!iso) return "never";

@@ -1,6 +1,6 @@
 {
   "name": "pi-skill-deck",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Two-pane categorized skill browser for Pi with bookmarks, tags, frecency tracking, source attribution, and 8 group-by modes (category, source, framework, creator, location, tag, usage, flat)",
   "main": "index.ts",
   "type": "module",
