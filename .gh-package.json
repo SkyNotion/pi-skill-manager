@@ -1,7 +1,7 @@
 {
   "name": "@cymatistatic/pi-skill-deck",
-  "version": "0.1.1",
-  "description": "Two-pane categorized skill browser for Pi with bookmarks, frecency tracking, and daily suggestions",
+  "version": "0.2.1",
+  "description": "Two-pane categorized skill browser for Pi with bookmarks, tags, frecency tracking, source attribution, and 8 group-by modes (category, source, framework, creator, location, tag, usage, flat)",
   "main": "index.ts",
   "type": "module",
   "keywords": [
@@ -28,6 +28,10 @@
     "scan.ts",
     "state.ts",
     "categories.ts",
+    "source.ts",
+    "body.ts",
+    "tags.ts",
+    "groupings.ts",
     "preview.png",
     "README.md",
     "CHANGELOG.md",

@@ -7,6 +7,73 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.1] — 2026-05-28
+
+### Added
+- **Discoverable key hints** — every interactive feature now shows its key
+  chip inline:
+  - Header right side: `group: <mode> [g]/[G] change  [?] help`
+  - DETAILS box tags row: `tags: ...  [t] inline  [T] modal`
+  - Footer keys are now in bright cyan `[...]` chips instead of dim text.
+- **`?` keyboard reference panel** — sectioned modal (Navigation · Group-by
+  · Skill actions · Search & exit). Toggle from anywhere with `?` or `Esc`.
+
+### Changed
+- Footer contrast inverted: keys are now the eye-catcher, labels are dim.
+- `keyHint()` helper centralizes chip rendering across header / footer /
+  details / modals so the visual style is consistent.
+
+---
+
+## [0.2.0] — 2026-05-27
+
+### Added
+- **8 group-by modes** — cycle with `g`, pick from menu with `G`:
+  - Category (default) · Source · Framework · Creator · Location · Tag
+    · Usage Tier (Power/Active/Tried/Unused) · Flat
+  - Selection persisted to `~/.pi/agent/skill-deck-prefs.json`.
+- **Per-skill tagging** — free-form tags, two editor styles available
+  simultaneously:
+  - `t` · inline editor (replaces footer)
+  - `T` (shift+t) · modal editor (floating centered box)
+  - Tags stored in `~/.pi/agent/skill-tags.json`. Can drive group-by.
+- **Source attribution** — every skill now carries
+  `{ origin, location, framework, creator }`:
+  - Detected from npm-package path > known install root > agents-pack
+    sub-library > name-prefix hint.
+  - Sub-libraries mapped: `marketing/` → Corey Haines, `producthunt/`
+    → yoanbernabeu, `oss-launch/` → gingiris, `microsoft-foundry/`
+    → Microsoft.
+  - Name hints: `baoyu-*` → 宝玉 (baoyu), `ctx-*` → Mario Zechner /
+    context-mode, `ph-*` → yoanbernabeu, `gr-*` → gingiris.
+- **Expanded DETAILS box** — now shows source row, framework + creator
+  row, tags row, separated **Description** block (frontmatter), and a
+  **What it does** block (SKILL.md body excerpt).
+- **⚠ Thin-body flag** — surfaces skills whose SKILL.md body is missing
+  or fragmentary (just code/lists/heading). Visible as a `⚠` next to
+  the skill name in the list AND inside the DETAILS box. Current scan
+  flags ~20 of ~157 skills.
+
+### Internal
+- New files: `source.ts`, `body.ts`, `tags.ts`, `groupings.ts`.
+- `scan.ts` now attaches `source` + body excerpt to every Skill.
+- `state.ts` gains `getPrefs` / `setPrefs` for persistent preferences.
+- `overlay.ts` rewritten: pluggable section building, dual tag editors,
+  group-by picker modal, expanded detail-box renderer.
+- `body.ts:extractBodyFromContent()` prefers an explicit About / Overview
+  / What-it-does / Purpose / Summary / Usage heading, then falls back to
+  the first 1-2 prose paragraphs (skipping code, lists, blockquotes,
+  tables, headings, metadata lines).
+
+### Backward compatibility
+- Old state files (`skill-usage.json`, `skill-bookmarks.json`,
+  `skill-suggestion.json`) are read as-is. No migration needed.
+- New prefs files are created lazily on first write.
+- Default group-by is still Category, so first-time experience for
+  upgrading users is identical to 0.1.x.
+
+---
+
 ## [0.1.1] — 2026-05-27
 
 ### Added
@@ -51,5 +118,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `/skills` and `/skill-deck` slash commands.
 - Selected skill is injected as a context message before the next agent turn.
 
+[0.2.1]: https://github.com/CymatiStatic/pi-skill-deck/releases/tag/v0.2.1
+[0.2.0]: https://github.com/CymatiStatic/pi-skill-deck/releases/tag/v0.2.0
 [0.1.1]: https://github.com/CymatiStatic/pi-skill-deck/releases/tag/v0.1.1
 [0.1.0]: https://github.com/CymatiStatic/pi-skill-deck/releases/tag/v0.1.0
