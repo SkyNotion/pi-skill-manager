@@ -7,12 +7,18 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
 import { categorizeSkill } from "./categories.ts";
+import { detectSource, type SkillSource } from "./source.ts";
+import { extractBodyFromContent } from "./body.ts";
 
 export interface Skill {
   name: string;
   description: string;
   filePath: string;
   category: string;
+  source: SkillSource;
+  bodyExcerpt: string;     // "What it does" excerpt from SKILL.md body
+  bodyIsThin: boolean;     // True when body is missing/too short — flagged in DETAILS
+  hasExplicitSection: boolean; // True when an About/Overview/etc heading was found
 }
 
 type ScanFormat = "recursive" | "claude";
@@ -46,11 +52,16 @@ function loadSkillFile(filePath: string, skills: Map<string, Skill>): void {
     const { name, description } = parseFrontmatter(content, dirName);
 
     if (description && !skills.has(name)) {
+      const body = extractBodyFromContent(content);
       skills.set(name, {
         name,
         description,
         filePath,
         category: categorizeSkill(name, description, filePath),
+        source: detectSource(name, filePath),
+        bodyExcerpt: body.excerpt,
+        bodyIsThin: body.isThin,
+        hasExplicitSection: body.hasExplicitSection,
       });
     }
   } catch {

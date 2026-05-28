@@ -11,13 +11,16 @@
 
 ## ✨ Features
 
-- **Two-pane browser** — categories on the left, skills + detail on the right
+- **Two-pane browser** — sections on the left, skills + detail on the right
+- **8 group-by modes** — `g` cycles, `G` opens a picker: **Category** · **Source** · **Framework** · **Creator** · **Location** · **Tag** · **Usage Tier** · **Flat**
+- **Source attribution** — every skill carries `source` (pi-agent / claude / codex / npm / agents-pack / project-local), `framework` (SuperClaude / Baoyu / Marketing pack / npm:`<pkg>` / …), and `creator` (baoyu / Anthropic / Corey Haines / Mario Zechner / Ben / …)
 - **Inline short summaries** — each row shows skill name + a one-line summary (derived from the SKILL.md description) so you can scan without selecting
-- **Boxed DETAILS window** — a `┌─┐` framed pane below the skill list shows the full description, category, and usage stats for the highlighted skill
+- **Expanded DETAILS box** — boxed pane shows category · usage · **source · location** · **framework · creator** · **tags** · full Description block · "What it does" body excerpt
+- **`⚠` Thin-body flag** — surfaces skills whose SKILL.md body is missing / sparse so you know which ones still need an explanation written
+- **Per-skill tags** — `t` (inline editor) or `T` (modal editor) to apply free-form tags; can be used as a group-by mode
 - **★ Top 10 most used** — pinned at the top, ranked by frecency (frequency × recency)
 - **📌 Bookmarks** — `Ctrl+B` to save skills for quick access
 - **💡 Daily suggestions** — 1–3 underused skills that match your activity patterns, refreshed daily
-- **13+ auto-categories** — Design & UI, Marketing & GTM, Product Hunt, Video & Media, Memory & Brain, Pi Meta, Open Design, Obsidian, Context-Mode, OSS Launch, Cloud & Deploy, Product, and more
 - **Search** — press `/` to filter skills by name or description in real time
 - **Skill queueing** — selected skill is injected alongside your next message
 - **Zero config** — scans all standard skill locations automatically
@@ -104,9 +107,37 @@ Type `/skills` inside any Pi session to open the browser.
 | `↑ ↓` | Navigate within the focused pane |
 | `Enter` | Queue the selected skill for your next message |
 | `Ctrl+B` | Toggle bookmark on highlighted skill |
+| `g` | Cycle group-by mode (Category → Source → Framework → Creator → Location → Tag → Usage Tier → Flat) |
+| `G` | Open group-by picker menu |
+| `t` | **Inline** tag editor (replaces footer bar) |
+| `T` (shift+t) | **Modal** tag editor (floating centered box) |
 | `/` | Start search (filters by name or description) |
-| `Esc` | Close overlay (or exit search mode) |
-| `Backspace` | Delete search characters |
+| `Esc` | Close overlay (or exit search / tag editor / picker) |
+| `Backspace` | Delete search / tag-editor character |
+
+### Group-by modes
+
+| Mode | What it groups on |
+|------|-------------------|
+| **Category** *(default)* | Semantic buckets (Design & UI, Marketing & GTM, Product Hunt, …) |
+| **Source** | Where the skill is installed from — Pi Agent / Pi User / Claude / Codex / npm / Agents Pack / Project-local |
+| **Framework** | Skill library — SuperClaude / Baoyu Skills / Marketing Sub-Library / ProductHunt Sub-Library / context-mode / npm:`<pkg>` |
+| **Creator** | Author — baoyu / Anthropic / Corey Haines / yoanbernabeu / gingiris / Mario Zechner / CymatiStatic / Ben (local) |
+| **Location** | Physical install path (`~/.pi/agent/skills`, `~/.claude/skills`, `~/.agents/skills/marketing`, etc.) |
+| **Tag** | Your applied tags |
+| **Usage Tier** | Power (10+ uses) · Active (3–9) · Tried (1–2) · Unused |
+| **Flat** | Single sorted list, no grouping |
+
+The selected mode is persisted to `~/.pi/agent/skill-deck-prefs.json` and restored next session.
+
+### Tag editor — two styles
+
+v0.2.0 ships **both** editor styles simultaneously so you can pick what feels best:
+
+- **`t` — Inline** · a text input replaces the footer hint bar. Fastest to type. Comma- or space-separated tags. `↵` saves, `Esc` cancels.
+- **`T` — Modal** · a floating box centered over the right pane shows the skill name + input field. More visible / less ambiguous. Same input format and controls.
+
+Tags are stored in `~/.pi/agent/skill-tags.json` and survive restarts.
 
 ## 🔍 How it works
 
@@ -135,6 +166,16 @@ Skills are categorized using a multi-layer strategy (applied in order):
 4. **Description keywords** — fallback keyword matching
 5. **"Other"** — last resort
 
+### Source detection
+
+Every skill is also tagged with `{ origin, location, framework, creator }`:
+
+1. **npm package** — path matches `node_modules/<pkg>/skills/…`, framework = `npm:<pkg>`, creator pulled from `package.json` `author` field
+2. **Known path root** — `~/.pi/agent`, `~/.claude`, `~/.codex`, `~/.agents`, etc.
+3. **Agents Pack sub-library** — `~/.agents/skills/marketing/` → Marketing Sub-Library (Corey Haines), `producthunt/` → yoanbernabeu, `oss-launch/` → gingiris
+4. **Name-prefix hint** — `baoyu-*` → creator: 宝玉 (baoyu); `ctx-*` → creator: Mario Zechner / framework: context-mode
+5. **Fallback** — `framework: —`, `creator: —`
+
 ### Frecency tracking
 
 Usage is tracked per-skill with a frecency score: `count × 0.5^(age_days / 7)`. This means a skill used 10 times last week ranks higher than one used 50 times last month. The Top 10 section reflects this ranking.
@@ -152,6 +193,36 @@ All persisted in `~/.pi/agent/`:
 | `skill-usage.json` | Per-skill `{ count, lastUsedAt }` |
 | `skill-bookmarks.json` | Array of bookmarked skill names |
 | `skill-suggestion.json` | `{ date, picks: [{ name, reason }] }` |
+| `skill-tags.json` | Per-skill tag arrays (`{ "baoyu-imagine": ["fav", "image"], … }`) |
+| `skill-deck-prefs.json` | Group-by mode + last-used tag editor style |
+
+## 📖 DETAILS box — anatomy
+
+```
+┌─ DETAILS: baoyu-imagine ────────────────────────────────────┐
+│ category: Baoyu Tools · used 3× · last: 2d ago             │
+│ source: claude-user · ~/.claude/skills                     │
+│ framework: Baoyu Skills    creator: 宝玉 (baoyu)             │
+│ tags:     #fav #image                                      │
+│ ───────────────────────────────────────────────────────────── │
+│ Description:                                               │
+│ AI image generation with OpenAI GPT Image 2, Azure         │
+│ OpenAI, Google, OpenRouter, DashScope, …                   │
+│ What it does:                                              │
+│ Generates images from text prompts using multiple AI       │
+│ providers. Supports reference images, aspect ratios, …     │
+└───────────────────────────────────────────────────────────────┐
+```
+
+When a skill's SKILL.md body is empty or too sparse, the "What it does" section shows:
+
+```
+│ What it does:                                              │
+│ ⚠ No body content in SKILL.md — frontmatter description    │
+│   only.                                                    │
+```
+
+The ⚠ indicator also appears next to skills in the list, so you can spot at a glance which skills still need their bodies written.
 
 ## ⚙️ Configuration
 

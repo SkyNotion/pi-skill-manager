@@ -12,6 +12,37 @@ import { CATEGORIES } from "./categories.ts";
 const STATE_DIR = path.join(os.homedir(), ".pi", "agent");
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Preferences (group-by mode, tag editor style)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface DeckPrefs {
+  groupBy?: string;             // GroupByMode (validated at read)
+  tagEditorStyle?: "inline" | "modal"; // remembered last-used editor (not used to disable the other)
+  lastSection?: string;         // remembered active left-pane section key
+}
+
+const PREFS_FILE = path.join(STATE_DIR, "skill-deck-prefs.json");
+
+export function getPrefs(): DeckPrefs {
+  return readJsonLazy(PREFS_FILE, {});
+}
+
+export function setPrefs(patch: Partial<DeckPrefs>): void {
+  writeJsonLazy(PREFS_FILE, { ...getPrefs(), ...patch });
+}
+
+// Lazy helpers used by prefs (defined inline to avoid forward-reference)
+function readJsonLazy<T>(filePath: string, fallback: T): T {
+  try { return JSON.parse(fs.readFileSync(filePath, "utf-8")) as T; } catch { return fallback; }
+}
+function writeJsonLazy(filePath: string, data: unknown): void {
+  try {
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+  } catch { /* silent */ }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Usage / Frecency
 // ═══════════════════════════════════════════════════════════════════════════
 
