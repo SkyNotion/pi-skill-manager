@@ -34,7 +34,7 @@ The same `pi install` command works in **any shell** (bash, zsh, PowerShell, cmd
 ### Option 1 — from npm (recommended)
 
 ```sh
-pi install pi-skill-deck
+npm install pi-skill-deck
 ```
 
 Pi resolves the package name against the npm registry, downloads it, and wires the `/skills` command automatically.
@@ -44,7 +44,7 @@ Pi resolves the package name against the npm registry, downloads it, and wires t
 For the very latest commit (may be ahead of npm):
 
 ```sh
-pi install CymatiStatic/pi-skill-deck
+npm install CymatiStatic/pi-skill-deck
 ```
 
 ### Option 3 — manual settings
