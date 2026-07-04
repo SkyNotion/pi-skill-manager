@@ -203,6 +203,7 @@ export class SkillDeckOverlay {
 
   private activeSkills(): Skill[] {
     const sec = this.activeSection();
+    if (!sec) return [];
     if (this.query) {
       return sec.skills.filter(
         (s) =>
@@ -400,12 +401,14 @@ export class SkillDeckOverlay {
     const listH = maxH - lines.length - detailH - 1;
 
     if (this.rightIdx >= skills.length) this.rightIdx = Math.max(0, skills.length - 1);
+    if (this.rightIdx < 0) this.rightIdx = 0;
     if (this.rightIdx < this.rightScroll) this.rightScroll = this.rightIdx;
     if (this.rightIdx >= this.rightScroll + listH) this.rightScroll = this.rightIdx - listH + 1;
 
     // Skill list
     for (let i = this.rightScroll; i < skills.length && lines.length - 2 < listH; i++) {
       const s = skills[i];
+      if (!s) continue; // defensive — guard against sparse array or stale index
       const isSelected = i === this.rightIdx && focused;
       const u = this.usage[s.name];
       const usageStr = u && u.count > 0 ? fg("33", `★${u.count}`) : "";
