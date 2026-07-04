@@ -12,15 +12,15 @@
     "skills",
     "productivity"
   ],
-  "homepage": "https://github.com/CymatiStatic/pi-skill-deck#readme",
+  "homepage": "https://github.com/SkyNotion/pi-skill-deck#readme",
   "bugs": {
-    "url": "https://github.com/CymatiStatic/pi-skill-deck/issues"
+    "url": "https://github.com/SkyNotion/pi-skill-deck/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/CymatiStatic/pi-skill-deck.git"
+    "url": "git+https://github.com/SkyNotion/pi-skill-deck.git"
   },
-  "author": "CymatiStatic",
+  "author": "SkyNotion",
   "license": "MIT",
   "files": [
     "index.ts",
