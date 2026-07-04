@@ -66,7 +66,7 @@ function loadSkillFile(filePath: string, skills: Map<string, Skill>): void {
         bodyIsThin: body.isThin,
         hasExplicitSection: body.hasExplicitSection,
         isCustom: false,
-    }
+      });
   } catch {
     // Skip unreadable files
   }
