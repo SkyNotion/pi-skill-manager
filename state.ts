@@ -7,7 +7,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
 import type { Skill } from "./scan.ts";
-import { CATEGORIES } from "./categories.ts";
+import { getCategoryDef } from "./categories.ts";
 
 const STATE_DIR = path.join(os.homedir(), ".pi", "agent");
 
@@ -180,7 +180,7 @@ export function getDailySuggestions(allSkills: Skill[]): SuggestionPick[] {
   // Score each pooled skill
   const scored = pool.map((s) => {
     const affinity = catUsage[s.category] || 0;
-    const catDef = CATEGORIES[s.category];
+    const catDef = getCategoryDef(s.category);
     const order = catDef ? catDef.sortOrder : 50;
     // Higher affinity = better. Lower sortOrder = better. Random tiebreak.
     const score = affinity * 10 + (100 - order) + Math.random() * 5;

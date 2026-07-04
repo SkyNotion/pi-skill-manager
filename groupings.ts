@@ -15,7 +15,7 @@
 
 import type { Skill } from "./scan.ts";
 import type { SourceOrigin } from "./source.ts";
-import { CATEGORIES } from "./categories.ts";
+import { getCategoryDef } from "./categories.ts";
 import { getUsageData, frecencyScore } from "./state.ts";
 import { getAllTagsBySkill } from "./tags.ts";
 
@@ -98,7 +98,7 @@ function groupByCategory(skills: Skill[]): GroupedSection[] {
     byCat.set(s.category, arr);
   }
   return [...byCat.entries()].map(([cat, list]) => {
-    const def = CATEGORIES[cat] || CATEGORIES["Other"];
+    const def = getCategoryDef(cat);
     return {
       key: cat,
       label: cat,
@@ -107,7 +107,7 @@ function groupByCategory(skills: Skill[]): GroupedSection[] {
       skills: sortByFrecency(list),
       sortOrder: def.sortOrder,
     };
-  }).sort((a, b) => a.sortOrder - b.sortOrder);
+  }).sort((a, b) => a.sortOrder - b.sortOrder || a.label.localeCompare(b.label));
 }
 
 const SOURCE_META: Record<SourceOrigin, { icon: string; ansi: string; sortOrder: number; label: string }> = {

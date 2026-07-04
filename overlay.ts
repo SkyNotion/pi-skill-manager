@@ -24,7 +24,7 @@
 
 import { matchesKey } from "@mariozechner/pi-tui";
 import type { Skill } from "./scan.ts";
-import { CATEGORIES } from "./categories.ts";
+import { getCategoryDef } from "./categories.ts";
 import {
   getUsageData,
   topSkills,

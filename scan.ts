@@ -55,18 +55,27 @@ function loadSkillFile(filePath: string, skills: Map<string, Skill>): void {
     const { name, description } = parseFrontmatter(content, dirName);
 
     if (description && !skills.has(name)) {
+      const source = detectSource(name, filePath);
+      const domain = categorizeSkill(name, description, filePath);
+      // Composite category: "{Provider}: {Domain}" — enables per-provider skill toggling
+      const provider = source.framework;
+      const category = provider && provider !== "—"
+        ? `${provider}: ${domain}`
+        : domain;
+
       const body = extractBodyFromContent(content);
       skills.set(name, {
         name,
         description,
         filePath,
-        category: categorizeSkill(name, description, filePath),
-        source: detectSource(name, filePath),
+        category,
+        source,
         bodyExcerpt: body.excerpt,
         bodyIsThin: body.isThin,
         hasExplicitSection: body.hasExplicitSection,
         isCustom: false,
       });
+    }
   } catch {
     // Skip unreadable files
   }
@@ -227,12 +236,14 @@ function scanDirForSkills(
 
           const body = extractBodyFromContent(content);
           const framework = entry.provider || "Custom";
+          const domain = categorizeSkill(name, description, categoryPath);
+          const category = `${framework}: ${domain}`;
 
           result.push({
             name,
             description,
             filePath: entryPath,
-            category: categorizeSkill(name, description, categoryPath),
+            category,
             source: {
               origin: "unknown",
               location: dir,
