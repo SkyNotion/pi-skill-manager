@@ -5,7 +5,7 @@
 [![npm version](https://img.shields.io/npm/v/pi-skill-manager.svg?color=cb3837&logo=npm)](https://www.npmjs.com/package/pi-skill-manager)
 [![license](https://img.shields.io/npm/l/pi-skill-manager.svg?color=blue)](LICENSE)
 [![node](https://img.shields.io/node/v/pi-skill-manager.svg?color=339933&logo=node.js)](package.json)
-[![github](https://img.shields.io/badge/repo-CymatiStatic%2Fpi--skill--manager-181717?logo=github)](https://github.com/CymatiStatic/pi-skill-manager)
+[![github](https://img.shields.io/badge/repo-SkyNotion%2Fpi--skill--manager-181717?logo=github)](https://github.com/SkyNotion/pi-skill-manager)
 
 ![pi-skill-manager preview](preview.png)
 
@@ -48,7 +48,8 @@ Add to `~/.pi/agent/settings.json` `packages` array:
 ```json
 {
   "packages": [
-    "npm:pi-skill-manager"
+    "npm:pi-skill-manager",
+    "github:SkyNotion/pi-skill-manager"
   ]
 }
 ```
@@ -177,4 +178,4 @@ PRs welcome! See [`AGENTS.md`](AGENTS.md) for the project's architecture overvie
 
 ## 📄 License
 
-[MIT](LICENSE)
+[MIT](LICENSE) — maintained by [@SkyNotion](https://github.com/SkyNotion)

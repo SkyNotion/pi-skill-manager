@@ -1,5 +1,5 @@
 {
-  "name": "@cymatistatic/pi-skill-manager",
+  "name": "@skynotion/pi-skill-manager",
   "version": "0.3.0",
   "description": "Skill enable/disable manager for Pi with category toggling, custom skill paths, per-session overrides, bookmarks, tags, and 8 group-by modes",
   "main": "index.ts",
@@ -12,15 +12,15 @@
     "skills",
     "productivity"
   ],
-  "homepage": "https://github.com/CymatiStatic/pi-skill-manager#readme",
+  "homepage": "https://github.com/SkyNotion/pi-skill-manager#readme",
   "bugs": {
-    "url": "https://github.com/CymatiStatic/pi-skill-manager/issues"
+    "url": "https://github.com/SkyNotion/pi-skill-manager/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/CymatiStatic/pi-skill-manager.git"
+    "url": "git+https://github.com/SkyNotion/pi-skill-manager.git"
   },
-  "author": "CymatiStatic",
+  "author": "SkyNotion",
   "license": "MIT",
   "files": [
     "index.ts",

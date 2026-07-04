@@ -28,7 +28,7 @@
  *   skill-suggestion.json      — { date, picks: [{name, reason}, ...] }
  *   skill-deck-prefs.json      — UI preferences
  *
- * https://github.com/CymatiStatic/pi-skill-manager
+ * https://github.com/SkyNotion/pi-skill-manager
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
