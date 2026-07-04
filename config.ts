@@ -62,7 +62,7 @@ const STATE_DIR = path.join(os.homedir(), ".pi", "agent");
 const CONFIG_FILE = path.join(STATE_DIR, "skill-manager-config.json");
 
 const DEFAULT_CONFIG: SkillManagerConfig = {
-  enabledCategories: [],   // all disabled by default
+  // enabledCategories intentionally undefined → all enabled by default
   customSkills: [],
 };
 
@@ -100,7 +100,18 @@ export function saveConfig(config: SkillManagerConfig): void {
   writeJson(CONFIG_FILE, config);
 }
 
-/** Resolve all enabled categories. null = all enabled. */
+/**
+ * Resolve all enabled categories.
+ *
+ * Priority:
+ *   1. Per-session override (set via the /skill-manager overlay)
+ *   2. Global config's enabledCategories
+ *
+ * Return values:
+ *   null → ALL enabled (default when config lacks "enabledCategories")
+ *   []   → ALL disabled
+ *   [...] → only listed categories are enabled
+ */
 export function getEffectiveCategories(
   config: SkillManagerConfig,
   sessionOverride: string[] | null,
