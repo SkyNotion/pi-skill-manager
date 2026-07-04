@@ -50,6 +50,8 @@ export interface CustomSkillEntry {
 export interface SkillManagerConfig {
   /** Categories to enable. Empty = all disabled. Absent = all enabled (backward compat). */
   enabledCategories?: string[];
+  /** Individual skill names to always include regardless of category toggles. */
+  enabledSkills?: string[];
   /** Custom skill paths outside Pi's standard locations. */
   customSkills?: CustomSkillEntry[];
 }

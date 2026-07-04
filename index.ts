@@ -40,7 +40,7 @@ import {
   getSkillContent,
   type Skill,
 } from "./scan.ts";
-import { recordUsage, topSkills, getBookmarks } from "./state.ts";
+import { topSkills } from "./state.ts";
 import { SkillDeckOverlay, type OverlayResult } from "./overlay.ts";
 import {
   loadConfig,
@@ -50,6 +50,7 @@ import {
 } from "./config.ts";
 import {
   getSessionOverride,
+  getSessionSkillsOverride,
   OVERRIDE_ENTRY_TYPE,
 } from "./session.ts";
 
@@ -62,6 +63,8 @@ interface ManagerState {
   config: SkillManagerConfig;
   /** Per-session override or null (use global default). */
   sessionCategories: string[] | null;
+  /** Per-session individual skill overrides. */
+  sessionSkills: string[];
   /** Cached custom skills (rebuilt on config change). */
   customSkills: Skill[];
 }
@@ -70,6 +73,7 @@ const state: ManagerState = {
   queuedSkill: null,
   config: { enabledCategories: [] },
   sessionCategories: null,
+  sessionSkills: [],
   customSkills: [],
 };
 
@@ -83,6 +87,16 @@ const state: ManagerState = {
  */
 function getActiveCategories(): string[] | null {
   return getEffectiveCategories(state.config, state.sessionCategories);
+}
+
+/**
+ * Compute the effective individually-enabled skills:
+ *   session override → config.enabledSkills → []
+ */
+function getActiveSkills(): string[] {
+  return state.sessionSkills.length > 0
+    ? state.sessionSkills
+    : state.config.enabledSkills ?? [];
 }
 
 /** Reload global config and custom skills. */
@@ -106,8 +120,9 @@ export default function piSkillManager(pi: ExtensionAPI): void {
     // Load global config
     reloadConfig();
 
-    // Read per-session override
+    // Read per-session overrides
     state.sessionCategories = getSessionOverride(ctx);
+    state.sessionSkills = getSessionSkillsOverride(ctx);
 
     // Load all discovered + custom skills for display
     const allSkills = loadAllSkills();
@@ -119,19 +134,18 @@ export default function piSkillManager(pi: ExtensionAPI): void {
         + state.customSkills.filter((s) => enabled.includes(s.category)).length;
 
     const top = topSkills(allSkills, 5);
-    const bm = getBookmarks();
-
     const topStr = top.length > 0
       ? top.map((s) => s.name).join(" · ")
       : "(no usage yet)";
-    const bmStr = bm.length > 0
-      ? bm.slice(0, 5).join(" · ") + (bm.length > 5 ? ` +${bm.length - 5}` : "")
-      : "(none)";
+    const enabledSkills = getActiveSkills();
+    const skillStr = enabledSkills.length > 0
+      ? `📌 ${enabledSkills.slice(0, 5).join(" · ")}${enabledSkills.length > 5 ? ` +${enabledSkills.length - 5}` : ""}`
+      : "(none individually selected)";
 
     ctx.ui.notify(
       `🎴 Skill Manager: ${total} skills (${enabledCount} enabled)\n` +
       `★ Top: ${topStr}\n` +
-      `📌 Bookmarked: ${bmStr}\n` +
+      `📌 Selected: ${skillStr}\n` +
       `Type /skill-manager to browse`,
       "info"
     );
@@ -139,7 +153,7 @@ export default function piSkillManager(pi: ExtensionAPI): void {
 
   // ── Register /skill-manager command (primary) ──
   pi.registerCommand("skill-manager", {
-    description: "Open the skill manager browser (category toggling, custom skills, per-session overrides)",
+    description: "Open the skill manager browser (category toggling, individual skill selection, custom skills, per-session overrides)",
     handler: async (_args: string, ctx: ExtensionContext) => {
       const allSkills = loadAllSkills();
       // Merge custom skills into the list for the overlay
@@ -151,13 +165,14 @@ export default function piSkillManager(pi: ExtensionAPI): void {
         return;
       }
 
-      // Pass current effective categories so the overlay can show enabled/disabled
+      // Pass current effective categories and skills so the overlay can show enabled/disabled
       const effectiveCategories = getActiveCategories();
+      const effectiveSkills = getActiveSkills();
 
       // Show overlay
       const result = await ctx.ui.custom<OverlayResult>(
         (tui, _theme, _keybindings, done) => {
-          const overlay = new SkillDeckOverlay(mergedSkills, done, effectiveCategories);
+          const overlay = new SkillDeckOverlay(mergedSkills, done, effectiveCategories, effectiveSkills);
           overlay.setRequestRender(() => tui.requestRender());
           return overlay;
         },
@@ -171,28 +186,31 @@ export default function piSkillManager(pi: ExtensionAPI): void {
         }
       );
 
-      // Handle skill selection
-      if (result.action === "select" && result.skill) {
-        state.queuedSkill = result.skill;
-        recordUsage(result.skill.name);
+      // On cancel, persist toggles if changed
+      if (result.action === "cancel") {
+        let changed = false;
 
-        ctx.ui.setStatus("skill-manager", `🎴 ${result.skill.name}`);
-        ctx.ui.setWidget("skill-manager", [
-          `\x1b[2m🎴 Skill: \x1b[0m\x1b[36m${result.skill.name}\x1b[0m\x1b[2m — will be applied to next message\x1b[0m`,
-        ]);
-        ctx.ui.notify(`Skill queued: ${result.skill.name}`, "info");
-      }
+        if (result.enabledCategories !== undefined) {
+          const prev = getActiveCategories();
+          if (JSON.stringify(prev) !== JSON.stringify(result.enabledCategories)) {
+            state.sessionCategories = result.enabledCategories;
+            changed = true;
+          }
+        }
 
-      // On cancel, check if categories were toggled and persist if changed
-      if (result.action === "cancel" && result.enabledCategories !== undefined) {
-        const prev = getActiveCategories();
-        const next = result.enabledCategories;
-        // Check if they actually changed
-        const changed =
-          JSON.stringify(prev) !== JSON.stringify(next);
+        if (result.enabledSkills !== undefined) {
+          const prev = getActiveSkills();
+          if (JSON.stringify(prev) !== JSON.stringify(result.enabledSkills)) {
+            state.sessionSkills = result.enabledSkills;
+            changed = true;
+          }
+        }
+
         if (changed) {
-          state.sessionCategories = next;
-          pi.appendEntry(OVERRIDE_ENTRY_TYPE, { enabledCategories: next });
+          pi.appendEntry(OVERRIDE_ENTRY_TYPE, {
+            enabledCategories: state.sessionCategories,
+            enabledSkills: state.sessionSkills,
+          });
         }
       }
     },
@@ -202,7 +220,6 @@ export default function piSkillManager(pi: ExtensionAPI): void {
   pi.registerCommand("skills", {
     description: "Alias for /skill-manager — open the skill manager browser",
     handler: async (_args: string, ctx: ExtensionContext) => {
-      // Forward to the skill-manager handler by calling it directly
       const allSkills = loadAllSkills();
       const mergedSkills = [...allSkills, ...state.customSkills];
 
@@ -213,10 +230,11 @@ export default function piSkillManager(pi: ExtensionAPI): void {
       }
 
       const effectiveCategories = getActiveCategories();
+      const effectiveSkills = getActiveSkills();
 
       const result = await ctx.ui.custom<OverlayResult>(
         (tui, _theme, _keybindings, done) => {
-          const overlay = new SkillDeckOverlay(mergedSkills, done, effectiveCategories);
+          const overlay = new SkillDeckOverlay(mergedSkills, done, effectiveCategories, effectiveSkills);
           overlay.setRequestRender(() => tui.requestRender());
           return overlay;
         },
@@ -230,26 +248,31 @@ export default function piSkillManager(pi: ExtensionAPI): void {
         }
       );
 
-      // Handle skill selection
-      if (result.action === "select" && result.skill) {
-        state.queuedSkill = result.skill;
-        recordUsage(result.skill.name);
-        ctx.ui.setStatus("skill-manager", `🎴 ${result.skill.name}`);
-        ctx.ui.setWidget("skill-manager", [
-          `\x1b[2m🎴 Skill: \x1b[0m\x1b[36m${result.skill.name}\x1b[0m\x1b[2m — will be applied to next message\x1b[0m`,
-        ]);
-        ctx.ui.notify(`Skill queued: ${result.skill.name}`, "info");
-      }
+      // On cancel, persist toggles if changed
+      if (result.action === "cancel") {
+        let changed = false;
 
-      // On cancel, persist category changes if any
-      if (result.action === "cancel" && result.enabledCategories !== undefined) {
-        const prev = getActiveCategories();
-        const next = result.enabledCategories;
-        const changed =
-          JSON.stringify(prev) !== JSON.stringify(next);
+        if (result.enabledCategories !== undefined) {
+          const prev = getActiveCategories();
+          if (JSON.stringify(prev) !== JSON.stringify(result.enabledCategories)) {
+            state.sessionCategories = result.enabledCategories;
+            changed = true;
+          }
+        }
+
+        if (result.enabledSkills !== undefined) {
+          const prev = getActiveSkills();
+          if (JSON.stringify(prev) !== JSON.stringify(result.enabledSkills)) {
+            state.sessionSkills = result.enabledSkills;
+            changed = true;
+          }
+        }
+
         if (changed) {
-          state.sessionCategories = next;
-          pi.appendEntry(OVERRIDE_ENTRY_TYPE, { enabledCategories: next });
+          pi.appendEntry(OVERRIDE_ENTRY_TYPE, {
+            enabledCategories: state.sessionCategories,
+            enabledSkills: state.sessionSkills,
+          });
         }
       }
     },
@@ -262,6 +285,7 @@ export default function piSkillManager(pi: ExtensionAPI): void {
     ctx.ui?.setWidget("skill-manager", undefined);
 
     const effectiveCategories = getActiveCategories();
+    const effectiveSkills = getActiveSkills();
     const hasCustomSkills = state.customSkills.length > 0;
 
     // Result to return (message + optional systemPrompt change)
@@ -287,9 +311,8 @@ export default function piSkillManager(pi: ExtensionAPI): void {
     }
 
     // Part 2: Filter system prompt to only include enabled skills
-    // (always apply filtering, regardless of queued skill)
-    if (effectiveCategories === null && !hasCustomSkills) {
-      // null = all enabled, no custom skills — nothing to do
+    if (effectiveCategories === null && effectiveSkills.length === 0 && !hasCustomSkills) {
+      // null = all enabled, no individually-enabled skills, no custom skills — nothing to do
       return result.message ? result : {};
     }
 
@@ -309,14 +332,16 @@ export default function piSkillManager(pi: ExtensionAPI): void {
     // same block. The filter below targets only inline <skill name="...">
     // entries (which we injected ourselves in previous turns) and leaves
     // Pi's native sub-element format untouched.
-    if (effectiveCategories !== null) {
+    if (effectiveCategories !== null || effectiveSkills.length > 0) {
       modifiedPrompt = modifiedPrompt.replace(
         /<skill\s+name="([^"]+)"[^>]*>\s*([\s\S]*?)\s*<\/skill>/gi,
         (match, skillName: string) => {
           const cat = nameToCategory.get(skillName);
           // If we don't know the category, keep it (conservative)
           if (!cat) return match;
+          // Keep if category is enabled OR skill is individually enabled
           if (isCategoryEnabled(cat, effectiveCategories)) return match;
+          if (effectiveSkills.includes(skillName)) return match;
           return ""; // remove disabled skill
         },
       );
@@ -326,10 +351,12 @@ export default function piSkillManager(pi: ExtensionAPI): void {
 
     // ── Inject custom skills into <available_skills> block ──
     if (hasCustomSkills) {
-      const injectable = effectiveCategories === null
+      // Include custom skills whose category is enabled OR whose name is individually selected
+      const injectable = effectiveCategories === null && effectiveSkills.length === 0
         ? state.customSkills
         : state.customSkills.filter((s) =>
-            isCategoryEnabled(s.category, effectiveCategories)
+            isCategoryEnabled(s.category, effectiveCategories) ||
+            effectiveSkills.includes(s.name)
           );
 
       if (injectable.length > 0) {

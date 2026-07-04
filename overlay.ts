@@ -10,9 +10,9 @@
  *   Tab / ← →   switch focus between panes
  *   ↑ ↓         navigate within focused pane
  *   Enter       queue selected skill (in right pane) / focus right pane (in left pane)
- *   Ctrl+B      toggle bookmark on highlighted skill
- *   c           toggle selected category on/off (category mode only)
- *   g           cycle group-by mode (Category → Source → Framework → Creator → Location → Tag → Usage → Flat)
+ *   Enter      toggle individual skill on/off (right pane) / focus right pane (left pane)
+ *   c          toggle selected category on/off (category mode only)
+ *   g          cycle group-by mode (Category → Source → Framework → Creator → Location → Tag → Usage → Flat)
  *   G           open group-by picker
  *   t           edit tags — INLINE editor (replaces footer)
  *   T           edit tags — MODAL editor (centered floating box)
@@ -28,9 +28,6 @@ import { getCategoryDef } from "./categories.ts";
 import {
   getUsageData,
   topSkills,
-  getBookmarks,
-  toggleBookmark,
-  isBookmarked,
   getDailySuggestions,
   frecencyScore,
   getPrefs,
@@ -84,7 +81,7 @@ const truncate = (s: string, max: number) => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 interface Section {
-  type: "top10" | "bookmarks" | "suggested" | "group";
+  type: "top10" | "suggested" | "group";
   label: string;
   icon: string;
   ansi: string;
@@ -96,8 +93,8 @@ interface Section {
 export type OverlayResult = {
   skill: Skill | null;
   action: "select" | "cancel" | "categories-changed";
-  bookmarkToggled?: string;
   enabledCategories?: string[] | null;
+  enabledSkills?: string[];
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -132,12 +129,16 @@ export class SkillDeckOverlay {
 
   private static readonly INACTIVITY_MS = 120_000;
 
+  private enabledSkills: string[] = [];
+
   constructor(
     skills: Skill[],
     private done: (result: OverlayResult) => void,
     private enabledCategories: string[] | null = null,
+    enabledSkills: string[] = [],
   ) {
     this.allSkills = skills;
+    this.enabledSkills = enabledSkills;
     const prefs = getPrefs();
     this.groupBy = isValidGroupByMode(prefs.groupBy) ? prefs.groupBy : "category";
     this.buildSections();
@@ -152,7 +153,6 @@ export class SkillDeckOverlay {
 
   private buildSections(): void {
     const sections: Section[] = [];
-    const bookmarkNames = getBookmarks();
     const suggestions = getDailySuggestions(this.allSkills);
 
     // ★ Top 10 (always pinned)
@@ -163,15 +163,6 @@ export class SkillDeckOverlay {
         skills: top, count: top.length,
       });
     }
-
-    // 📌 Bookmarks (always pinned)
-    const bmSkills = bookmarkNames
-      .map((n) => this.allSkills.find((s) => s.name === n))
-      .filter(Boolean) as Skill[];
-    sections.push({
-      type: "bookmarks", label: "📌 BOOKMARKS", icon: "📌", ansi: "36",
-      skills: bmSkills, count: bmSkills.length,
-    });
 
     // 💡 Suggested (always pinned, when available)
     if (suggestions.length > 0) {
@@ -296,8 +287,7 @@ export class SkillDeckOverlay {
     return " " +
       keyHint("Tab")    + dim(" panes ")    +
       keyHint("↑↓")     + dim(" nav ")      +
-      keyHint("↵")     + dim(" queue ")    +
-      keyHint("Ctrl+B") + dim(" bookmark ") +
+      keyHint("↵")     + dim(" select ")    +
       keyHint("g")      + dim("/")           + keyHint("G") + dim(" group ") +
       keyHint("t")      + dim("/")           + keyHint("T") + dim(" tag ") +
       toggleHint +
@@ -370,11 +360,10 @@ export class SkillDeckOverlay {
         lines.push(pad(line, w));
       }
 
-      // Divider after pinned sections (last pinned section is suggested OR bookmarks)
+      // Divider after pinned sections (after top10 or suggested)
       const next = this.sections[i + 1];
       const isLastPinned =
-        (sec.type === "suggested" && next?.type === "group") ||
-        (sec.type === "bookmarks" && next?.type === "group");
+        (sec.type === "suggested" && next?.type === "group");
       if (isLastPinned && lines.length < maxH) {
         lines.push(dim("─".repeat(w)));
       }
@@ -412,14 +401,15 @@ export class SkillDeckOverlay {
       const isSelected = i === this.rightIdx && focused;
       const u = this.usage[s.name];
       const usageStr = u && u.count > 0 ? fg("33", `★${u.count}`) : "";
-      const bmStr = isBookmarked(s.name) ? fg("36", " 📌") : "";
+      const isEnabled = this.enabledSkills.includes(s.name);
+      const toggleStr = isEnabled ? fg("32", "[✓]") : fg("90", "[ ]");
       const tagCount = getTags(s.name).length;
       const tagStr = tagCount > 0 ? fg("33", ` 🏷${tagCount}`) : "";
       const thinStr = s.bodyIsThin ? fg("90", " ⚠") : "";
-      const indicatorStr = bmStr + tagStr + thinStr + (usageStr ? " " + usageStr : "");
+      const indicatorStr = tagStr + thinStr + (usageStr ? " " + usageStr : "");
       const indicatorW = visLen(indicatorStr);
 
-      const markerW = 3;
+      const markerW = 4;
       const sepW = 3;
       const rightMargin = 1;
       const flexW = Math.max(0, w - markerW - sepW - indicatorW - rightMargin);
@@ -429,7 +419,8 @@ export class SkillDeckOverlay {
       const name = truncate(s.name, nameColW);
       const summary = summaryColW > 8 ? shortSummary(s.description, summaryColW) : "";
 
-      const marker = isSelected ? fg("36", " ► ") : "   ";
+      const selArrow = isSelected ? fg("36", "►") : dim("·");
+      const marker = `${toggleStr}${selArrow}`;
       const nameField = pad(name, nameColW);
       const sep = summaryColW > 8 ? dim(" ┊ ") : "   ";
       const summaryField = pad(dim(summary), summaryColW);
@@ -630,7 +621,7 @@ export class SkillDeckOverlay {
       ["c",                  "Toggle selected category on/off"],
       "section",
       "Skill actions",
-      ["Ctrl+B",             "Toggle bookmark on highlighted skill"],
+      ["Enter",               "Toggle individual skill on/off"],
       ["t",                  "Edit tags — inline editor"],
       ["T",                  "Edit tags — modal editor"],
       "section",
@@ -726,6 +717,7 @@ export class SkillDeckOverlay {
         skill: null,
         action: "cancel",
         enabledCategories: this.enabledCategories,
+        enabledSkills: this.enabledSkills,
       });
       return;
     }
@@ -795,18 +787,7 @@ export class SkillDeckOverlay {
       return;
     }
 
-    // Ctrl+B → toggle bookmark
-    if (matchesKey(data, "ctrl+b")) {
-      const s = this.activeSkills()[this.rightIdx];
-      if (s) {
-        toggleBookmark(s.name);
-        this.buildSections();
-        this.requestRender?.();
-      }
-      return;
-    }
-
-    // Enter → queue skill (right pane) or focus right (left pane)
+    // Enter → toggle individual skill (right pane) or focus right (left pane)
     if (matchesKey(data, "return")) {
       if (this.focusPane === "left") {
         this.focusPane = "right";
@@ -817,8 +798,13 @@ export class SkillDeckOverlay {
       }
       const s = this.activeSkills()[this.rightIdx];
       if (s) {
-        this.cleanup();
-        this.done({ skill: s, action: "select" });
+        const idx = this.enabledSkills.indexOf(s.name);
+        if (idx >= 0) {
+          this.enabledSkills.splice(idx, 1);
+        } else {
+          this.enabledSkills.push(s.name);
+        }
+        this.requestRender?.();
       }
       return;
     }
@@ -954,6 +940,7 @@ export class SkillDeckOverlay {
         skill: null,
         action: "cancel",
         enabledCategories: this.enabledCategories,
+        enabledSkills: this.enabledSkills,
       });
     }, SkillDeckOverlay.INACTIVITY_MS);
   }

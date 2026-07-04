@@ -104,33 +104,6 @@ export function topSkills(skills: Skill[], n: number): Skill[] {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Bookmarks
-// ═══════════════════════════════════════════════════════════════════════════
-
-const BOOKMARKS_FILE = path.join(STATE_DIR, "skill-bookmarks.json");
-
-export function getBookmarks(): string[] {
-  return readJson<string[]>(BOOKMARKS_FILE, []);
-}
-
-export function toggleBookmark(skillName: string): boolean {
-  const bm = getBookmarks();
-  const idx = bm.indexOf(skillName);
-  if (idx >= 0) {
-    bm.splice(idx, 1);
-    writeJson(BOOKMARKS_FILE, bm);
-    return false; // removed
-  }
-  bm.push(skillName);
-  writeJson(BOOKMARKS_FILE, bm);
-  return true; // added
-}
-
-export function isBookmarked(skillName: string): boolean {
-  return getBookmarks().includes(skillName);
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
 // Daily Suggestions
 // ═══════════════════════════════════════════════════════════════════════════
 
