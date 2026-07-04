@@ -331,6 +331,7 @@ export default function piSkillManager(pi: ExtensionAPI): void {
           .map((s) => `  <skill name="${s.name}">${s.description}</skill>`)
           .join("\n");
 
+        // Try to inject into an existing <skills> block first
         const skillsTagMatch = modifiedPrompt.match(/<skills>[\s\S]*?<\/skills>/i);
         if (skillsTagMatch) {
           const original = skillsTagMatch[0];
@@ -339,6 +340,13 @@ export default function piSkillManager(pi: ExtensionAPI): void {
             `\n${skillXmlBlock}\n</skills>`,
           );
           modifiedPrompt = modifiedPrompt.replace(original, updated);
+        } else {
+          // No <skills> block exists (e.g. Pi found zero native skills) —
+          // create one and append near the end of the system prompt.
+          const block = `<skills>\n${skillXmlBlock}\n</skills>`;
+          // Append before the final closing if there's a structure, otherwise at the end
+          modifiedPrompt = modifiedPrompt.replace(/\n*$/,
+            `\n\n${block}`);
         }
       }
     }
