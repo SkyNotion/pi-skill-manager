@@ -46,11 +46,11 @@
     ]
   },
   "peerDependencies": {
-    "@mariozechner/pi-coding-agent": ">=0.1.0",
-    "@mariozechner/pi-tui": ">=0.1.0"
+    "@earendil-works/pi-coding-agent": ">=0.1.0",
+    "@earendil-works/pi-tui": ">=0.1.0"
   },
   "peerDependenciesMeta": {
-    "@mariozechner/pi-coding-agent": { "optional": false },
-    "@mariozechner/pi-tui": { "optional": false }
+    "@earendil-works/pi-coding-agent": { "optional": false },
+    "@earendil-works/pi-tui": { "optional": false }
   }
 }
