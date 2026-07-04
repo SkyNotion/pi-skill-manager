@@ -9,6 +9,7 @@ import * as os from "node:os";
 import { categorizeSkill } from "./categories.ts";
 import { detectSource, type SkillSource } from "./source.ts";
 import { extractBodyFromContent } from "./body.ts";
+import type { CustomSkillEntry } from "./config.ts";
 
 export interface Skill {
   name: string;
@@ -19,6 +20,8 @@ export interface Skill {
   bodyExcerpt: string;     // "What it does" excerpt from SKILL.md body
   bodyIsThin: boolean;     // True when body is missing/too short — flagged in DETAILS
   hasExplicitSection: boolean; // True when an About/Overview/etc heading was found
+  /** True when this skill came from a custom path in the config file. */
+  isCustom: boolean;
 }
 
 type ScanFormat = "recursive" | "claude";
@@ -28,7 +31,7 @@ interface ScanDir {
   format: ScanFormat;
 }
 
-function parseFrontmatter(content: string, fallbackName: string): { name: string; description: string } {
+export function parseFrontmatter(content: string, fallbackName: string): { name: string; description: string } {
   if (!content.startsWith("---")) {
     return { name: fallbackName, description: "" };
   }
@@ -62,7 +65,7 @@ function loadSkillFile(filePath: string, skills: Map<string, Skill>): void {
         bodyExcerpt: body.excerpt,
         bodyIsThin: body.isThin,
         hasExplicitSection: body.hasExplicitSection,
-      });
+        isCustom: false,
     }
   } catch {
     // Skip unreadable files
@@ -153,6 +156,183 @@ export function loadAllSkills(): Skill[] {
   scanNpmGlobalSkills(skills);
 
   return Array.from(skills.values());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Custom skills loader
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Name resolution order for a custom skill entry:
+ * 1. Config entry has "name"? → use it
+ * 2. File has YAML frontmatter with "name:"? → use that
+ * 3. Derive from filename stem
+ */
+function resolveSkillName(
+  configName: string | undefined,
+  content: string,
+  fileName: string,
+): string {
+  if (configName) return configName;
+  const { name: fmName } = parseFrontmatter(content, "");
+  if (fmName) return fmName;
+  // Fallback: basename without extension
+  return path.basename(fileName, path.extname(fileName));
+}
+
+/**
+ * Recursively scan a directory for SKILL.md files (same as Pi's native scanner).
+ */
+function scanDirForSkills(
+  dir: string,
+  entry: CustomSkillEntry,
+  result: Skill[],
+  visited: Set<string>,
+): void {
+  const resolved = fs.realpathSync?.(dir) ?? dir;
+  if (visited.has(resolved)) return;
+  visited.add(resolved);
+
+  try {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const dirent of entries) {
+      const entryPath = path.join(dir, dirent.name);
+      let isDir = dirent.isDirectory();
+      let isFile = dirent.isFile();
+
+      if (dirent.isSymbolicLink()) {
+        try {
+          const stats = fs.statSync(entryPath);
+          isDir = stats.isDirectory();
+          isFile = stats.isFile();
+        } catch {
+          continue;
+        }
+      }
+
+      if (isDir) {
+        scanDirForSkills(entryPath, entry, result, visited);
+      } else if (isFile && dirent.name === "SKILL.md") {
+        try {
+          const content = fs.readFileSync(entryPath, "utf-8");
+          const dirName = path.basename(path.dirname(entryPath));
+          const { name, description } = parseFrontmatter(content, dirName);
+
+          if (!description) continue;
+
+          // Use entry's parentDir hint for categorization if provided
+          const categoryPath = entry.parentDir
+            ? path.join(dir, entry.parentDir, "SKILL.md")
+            : entryPath;
+
+          const body = extractBodyFromContent(content);
+          const framework = entry.provider || "Custom";
+
+          result.push({
+            name,
+            description,
+            filePath: entryPath,
+            category: categorizeSkill(name, description, categoryPath),
+            source: {
+              origin: "unknown",
+              location: dir,
+              framework,
+              creator: "user",
+              installRoot: dir,
+            },
+            bodyExcerpt: body.excerpt,
+            bodyIsThin: body.isThin,
+            hasExplicitSection: body.hasExplicitSection,
+            isCustom: true,
+          });
+        } catch {
+          // skip unreadable
+        }
+      }
+    }
+  } catch {
+    // skip inaccessible
+  }
+}
+
+/**
+ * Load skills from custom paths defined in the config.
+ *
+ * Two modes per entry:
+ *   - recurse=true:  Recursively scan directory for all SKILL.md files (like Pi's native scanner)
+ *   - recurse=false: Read a single file (fileName, defaults to "SKILL.md")
+ *
+ * Returns an array of Skill objects (never throws; skips bad entries silently).
+ */
+export function loadCustomSkills(customSkills: CustomSkillEntry[]): Skill[] {
+  const result: Skill[] = [];
+  const cwd = process.cwd();
+
+  for (const entry of customSkills) {
+    try {
+      // Resolve path: absolute or relative to cwd
+      const dir = path.isAbsolute(entry.path)
+        ? entry.path
+        : path.resolve(cwd, entry.path);
+
+      if (!fs.existsSync(dir)) {
+        console.warn(`[skill-manager] custom skill path not found: ${dir}`);
+        continue;
+      }
+
+      if (entry.recurse) {
+        // Recursive scan: walk all subdirectories for SKILL.md
+        const visited = new Set<string>();
+        scanDirForSkills(dir, entry, result, visited);
+        continue;
+      }
+
+      // Single-file mode
+      const fileName = entry.fileName || "SKILL.md";
+      const filePath = path.join(dir, fileName);
+
+      if (!fs.existsSync(filePath)) {
+        console.warn(`[skill-manager] custom skill file not found: ${filePath}`);
+        continue;
+      }
+
+      const content = fs.readFileSync(filePath, "utf-8");
+      const name = resolveSkillName(entry.name, content, fileName);
+      const { description } = parseFrontmatter(content, name);
+
+      // Build a synthetic filePath that includes parentDir for category detection
+      const categoryPath = entry.parentDir
+        ? path.join(dir, entry.parentDir, fileName)
+        : filePath;
+
+      const category = categorizeSkill(name, description, categoryPath);
+
+      const body = extractBodyFromContent(content);
+      const framework = entry.provider || "Custom";
+
+      result.push({
+        name,
+        description,
+        filePath,
+        category,
+        source: {
+          origin: "unknown",
+          location: dir,
+          framework,
+          creator: "user",
+          installRoot: dir,
+        },
+        bodyExcerpt: body.excerpt,
+        bodyIsThin: body.isThin,
+        hasExplicitSection: body.hasExplicitSection,
+        isCustom: true,
+      });
+    } catch (err) {
+      console.warn(`[skill-manager] error loading custom skill: ${entry.path}`, err);
+    }
+  }
+
+  return result;
 }
 
 /** Strip frontmatter and return the body content of a SKILL.md */

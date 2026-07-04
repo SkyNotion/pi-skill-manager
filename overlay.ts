@@ -1,5 +1,5 @@
 /**
- * Two-pane TUI overlay for the skill browser.
+ * Two-pane TUI overlay for the pi-skill-manager.
  *
  * Left pane:  ★ Top 10 → 📌 Bookmarks → 💡 Suggested → [Grouped sections per current group-by mode]
  * Right pane: Skill list (each row = name + inline short summary + indicators)
@@ -11,6 +11,7 @@
  *   ↑ ↓         navigate within focused pane
  *   Enter       queue selected skill (in right pane) / focus right pane (in left pane)
  *   Ctrl+B      toggle bookmark on highlighted skill
+ *   c           toggle selected category on/off (category mode only)
  *   g           cycle group-by mode (Category → Source → Framework → Creator → Location → Tag → Usage → Flat)
  *   G           open group-by picker
  *   t           edit tags — INLINE editor (replaces footer)
@@ -47,6 +48,7 @@ import {
   type GroupedSection,
 } from "./groupings.ts";
 import { getTags, setTags, parseTagInput } from "./tags.ts";
+import { isCategoryEnabled } from "./config.ts";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ANSI helpers
@@ -93,8 +95,9 @@ interface Section {
 
 export type OverlayResult = {
   skill: Skill | null;
-  action: "select" | "cancel";
+  action: "select" | "cancel" | "categories-changed";
   bookmarkToggled?: string;
+  enabledCategories?: string[] | null;
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -131,7 +134,8 @@ export class SkillDeckOverlay {
 
   constructor(
     skills: Skill[],
-    private done: (result: OverlayResult) => void
+    private done: (result: OverlayResult) => void,
+    private enabledCategories: string[] | null = null,
   ) {
     this.allSkills = skills;
     const prefs = getPrefs();
@@ -224,7 +228,7 @@ export class SkillDeckOverlay {
     const modeLabel = GROUP_BY_LABELS[this.groupBy];
 
     // ── Header ── (shows current group-by mode + the keys that change it)
-    const headerLeft = ` ${fg("36", "/skills")}${dim(` ─── ${total} skills `)}`;
+    const headerLeft = ` ${fg("36", "/skill-manager")}${dim(` ─── ${total} skills `)}`;
     const headerRight = `${dim("group: ")}${fg("33", bold(modeLabel))} ${keyHint("g")}${dim("/")}${keyHint("G")}${dim(" change ")}${keyHint("?")}${dim(" help ")}`;
     const headerInner = headerLeft + dim("─".repeat(Math.max(0, w - visLen(headerLeft) - visLen(headerRight) - 2))) + headerRight;
     lines.push(dim("┌") + headerInner + dim("┐"));
@@ -285,6 +289,9 @@ export class SkillDeckOverlay {
       return " " + dim("keyboard reference  ") + keyHint("?") + dim(" or ") + keyHint("esc") + dim(" to close");
     }
     // Main footer — keys highlighted in cyan, labels dim for fast scanning
+    const toggleHint = this.groupBy === "category"
+      ? `  ${keyHint("c")}${dim(" toggle ")}`
+      : "";
     return " " +
       keyHint("Tab")    + dim(" panes ")    +
       keyHint("↑↓")     + dim(" nav ")      +
@@ -292,9 +299,40 @@ export class SkillDeckOverlay {
       keyHint("Ctrl+B") + dim(" bookmark ") +
       keyHint("g")      + dim("/")           + keyHint("G") + dim(" group ") +
       keyHint("t")      + dim("/")           + keyHint("T") + dim(" tag ") +
+      toggleHint +
       keyHint("/")      + dim(" search ")   +
       keyHint("?")      + dim(" help ")     +
       keyHint("Esc")    + dim(" close");
+  }
+
+  /** Toggle the enabled state of a category. Mutates enabledCategories in place. */
+  private toggleCategory(category: string): void {
+    const current = this.enabledCategories;
+    if (current === null) {
+      // Was "all enabled" — explicitly disable this one category
+      // Collect all unique categories from skills across sections
+      const allCats = new Set<string>();
+      for (const sec of this.sections) {
+        for (const s of sec.skills) allCats.add(s.category);
+      }
+      // Enable everything except the toggled category
+      this.enabledCategories = [...allCats].filter((c) => c !== category);
+    } else {
+      const idx = current.indexOf(category);
+      if (idx >= 0) {
+        // Was enabled → remove it
+        const next = current.filter((c) => c !== category);
+        if (next.length === 0) {
+          // All disabled now
+          this.enabledCategories = [];
+        } else {
+          this.enabledCategories = next;
+        }
+      } else {
+        // Was disabled → add it
+        this.enabledCategories = [...current, category];
+      }
+    }
   }
 
   private renderLeftPane(w: number, maxH: number): string[] {
@@ -306,8 +344,17 @@ export class SkillDeckOverlay {
       const isActive = i === this.leftIdx;
       const countStr = ` ${sec.count}`;
 
+      // For group sections in category mode, show [✓]/[ ] toggle indicator
+      let togglePrefix = "";
+      if (sec.type === "group" && this.groupBy === "category") {
+        const enabled =
+          this.enabledCategories === null ||
+          isCategoryEnabled(sec.label, this.enabledCategories);
+        togglePrefix = enabled ? fg("32", "[✓] ") : fg("90", "[ ] ");
+      }
+
       let label = sec.type === "group"
-        ? ` ${sec.icon} ${sec.label}`
+        ? ` ${sec.icon} ${togglePrefix}${sec.label}`
         : ` ${sec.label}`;
 
       const avail = w - visLen(countStr) - 1;
@@ -577,6 +624,7 @@ export class SkillDeckOverlay {
       "Group-by",
       ["g",                  "Cycle to next group-by mode"],
       ["G",                  "Open group-by picker (menu)"],
+      ["c",                  "Toggle selected category on/off"],
       "section",
       "Skill actions",
       ["Ctrl+B",             "Toggle bookmark on highlighted skill"],
@@ -671,7 +719,11 @@ export class SkillDeckOverlay {
     // Escape → close
     if (matchesKey(data, "escape")) {
       this.cleanup();
-      this.done({ skill: null, action: "cancel" });
+      this.done({
+        skill: null,
+        action: "cancel",
+        enabledCategories: this.enabledCategories,
+      });
       return;
     }
 
@@ -692,6 +744,18 @@ export class SkillDeckOverlay {
       this.rightScroll = 0;
       this.buildSections();
       this.requestRender?.();
+      return;
+    }
+
+    // c → toggle category on/off (only effective in category group-by mode)
+    if (data === "c" && this.groupBy === "category") {
+      const sec = this.activeSection();
+      if (sec.type === "group") {
+        this.toggleCategory(sec.label);
+        // Rebuild sections so the skill counts reflect the new enabled state
+        this.buildSections();
+        this.requestRender?.();
+      }
       return;
     }
 
@@ -883,7 +947,11 @@ export class SkillDeckOverlay {
     if (this.inactivityTimeout) clearTimeout(this.inactivityTimeout);
     this.inactivityTimeout = setTimeout(() => {
       this.cleanup();
-      this.done({ skill: null, action: "cancel" });
+      this.done({
+        skill: null,
+        action: "cancel",
+        enabledCategories: this.enabledCategories,
+      });
     }, SkillDeckOverlay.INACTIVITY_MS);
   }
 

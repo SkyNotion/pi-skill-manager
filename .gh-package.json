@@ -1,7 +1,7 @@
 {
-  "name": "@cymatistatic/pi-skill-deck",
-  "version": "0.2.1",
-  "description": "Two-pane categorized skill browser for Pi with bookmarks, tags, frecency tracking, source attribution, and 8 group-by modes (category, source, framework, creator, location, tag, usage, flat)",
+  "name": "@cymatistatic/pi-skill-manager",
+  "version": "0.3.0",
+  "description": "Skill enable/disable manager for Pi with category toggling, custom skill paths, per-session overrides, bookmarks, tags, and 8 group-by modes",
   "main": "index.ts",
   "type": "module",
   "keywords": [
@@ -12,13 +12,13 @@
     "skills",
     "productivity"
   ],
-  "homepage": "https://github.com/CymatiStatic/pi-skill-deck#readme",
+  "homepage": "https://github.com/CymatiStatic/pi-skill-manager#readme",
   "bugs": {
-    "url": "https://github.com/CymatiStatic/pi-skill-deck/issues"
+    "url": "https://github.com/CymatiStatic/pi-skill-manager/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/CymatiStatic/pi-skill-deck.git"
+    "url": "git+https://github.com/CymatiStatic/pi-skill-manager.git"
   },
   "author": "CymatiStatic",
   "license": "MIT",
@@ -27,6 +27,8 @@
     "overlay.ts",
     "scan.ts",
     "state.ts",
+    "config.ts",
+    "session.ts",
     "categories.ts",
     "source.ts",
     "body.ts",
