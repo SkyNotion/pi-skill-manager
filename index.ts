@@ -340,7 +340,7 @@ export default function piSkillManager(pi: ExtensionAPI): void {
         //   </skill>
         const skillXmlBlock = injectable
           .map((s) =>
-            `  <skill>\n    <name>${s.name}</name>\n    <description>${s.description}</description>\n  </skill>`
+            `  <skill>\n    <name>${s.name}</name>\n    <description>${s.description}</description>\n    <location>${s.filePath}</location>\n  </skill>`
           )
           .join("\n");
 
