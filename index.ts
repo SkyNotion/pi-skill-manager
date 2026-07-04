@@ -302,7 +302,13 @@ export default function piSkillManager(pi: ExtensionAPI): void {
       nameToCategory.set(s.name, s.category);
     }
 
-    // ── Filter Pi's native skills from the system prompt ──
+    // ── Filter skills from the system prompt ──
+    // Note: Pi puts extension-provided skills in <available_skills> using
+    // the format <skill><name>...</name><description>...</description></skill>.
+    // Our custom skills are injected as additional <skill> entries in the
+    // same block. The filter below targets only inline <skill name="...">
+    // entries (which we injected ourselves in previous turns) and leaves
+    // Pi's native sub-element format untouched.
     if (effectiveCategories !== null) {
       modifiedPrompt = modifiedPrompt.replace(
         /<skill\s+name="([^"]+)"[^>]*>\s*([\s\S]*?)\s*<\/skill>/gi,
@@ -318,7 +324,7 @@ export default function piSkillManager(pi: ExtensionAPI): void {
       modifiedPrompt = modifiedPrompt.replace(/\n{3,}/g, "\n\n");
     }
 
-    // ── Inject custom skills into the skills block ──
+    // ── Inject custom skills into <available_skills> block ──
     if (hasCustomSkills) {
       const injectable = effectiveCategories === null
         ? state.customSkills
@@ -327,24 +333,29 @@ export default function piSkillManager(pi: ExtensionAPI): void {
           );
 
       if (injectable.length > 0) {
+        // Use the same sub-element format Pi uses:
+        //   <skill>
+        //     <name>xxx</name>
+        //     <description>xxx</description>
+        //   </skill>
         const skillXmlBlock = injectable
-          .map((s) => `  <skill name="${s.name}">${s.description}</skill>`)
+          .map((s) =>
+            `  <skill>\n    <name>${s.name}</name>\n    <description>${s.description}</description>\n  </skill>`
+          )
           .join("\n");
 
-        // Try to inject into an existing <skills> block first
-        const skillsTagMatch = modifiedPrompt.match(/<skills>[\s\S]*?<\/skills>/i);
-        if (skillsTagMatch) {
-          const original = skillsTagMatch[0];
+        // Find existing <available_skills> block added by Pi
+        const availMatch = modifiedPrompt.match(/<available_skills>[\s\S]*?<\/available_skills>/i);
+        if (availMatch) {
+          const original = availMatch[0];
           const updated = original.replace(
-            /<\/skills>/i,
-            `\n${skillXmlBlock}\n</skills>`,
+            /<\/available_skills>/i,
+            `\n${skillXmlBlock}\n</available_skills>`,
           );
           modifiedPrompt = modifiedPrompt.replace(original, updated);
         } else {
-          // No <skills> block exists (e.g. Pi found zero native skills) —
-          // create one and append near the end of the system prompt.
-          const block = `<skills>\n${skillXmlBlock}\n</skills>`;
-          // Append before the final closing if there's a structure, otherwise at the end
+          // No <available_skills> block at all — create one before the final structure
+          const block = `<available_skills>\n${skillXmlBlock}\n</available_skills>`;
           modifiedPrompt = modifiedPrompt.replace(/\n*$/,
             `\n\n${block}`);
         }
