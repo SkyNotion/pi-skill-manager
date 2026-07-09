@@ -35,10 +35,10 @@
 npm install pi-skill-manager
 ```
 
-### Option 2 — from GitHub
+### Option 2 — from GitHub 
 
 ```sh
-npm install CymatiStatic/pi-skill-manager
+npm install SkyNotion/pi-skill-manager
 ```
 
 ### Option 3 — manual settings
